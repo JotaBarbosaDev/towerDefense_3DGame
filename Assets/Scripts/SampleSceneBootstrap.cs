@@ -116,7 +116,8 @@ public class SampleSceneBootstrap : MonoBehaviour
         StartCoroutine(SpawnLevelOneWaves());
         Debug.Log(
             "[SampleSceneBootstrap] Level 1 (" + GetDifficultyConfig().displayName + ") active with " +
-            GetTowerArchetypes().Length + " build options and 2 waves.",
+            GetTowerArchetypes().Length + " build options and " +
+            "2 waves.",
             this);
     }
 
@@ -521,6 +522,74 @@ public class SampleSceneBootstrap : MonoBehaviour
         return Mathf.Max(0, GetDifficultyConfig().startingCurrency);
     }
 
+    int CalculateReward(
+        float health,
+        float speed,
+        EnemyMovementKind movementKind,
+        int waveIndex,
+        int goalDamage,
+        bool elite)
+    {
+        int cheapestTowerCost = GetCheapestTowerCost();
+        int mostExpensiveTowerCost = GetMostExpensiveTowerCost();
+
+        float reward = Mathf.Max(20f, cheapestTowerCost * 0.08f);
+        reward += health * 0.7f;
+        reward += speed * 1.2f;
+        reward += goalDamage * 5f;
+
+        if (movementKind == EnemyMovementKind.Air)
+        {
+            reward += 12f;
+        }
+
+        reward += Mathf.Max(0, waveIndex - 1) * 12f;
+        reward += Mathf.Max(0f, health - 20f) * 2.4f;
+
+        if (elite)
+        {
+            reward += 18f;
+        }
+
+        int roundedReward = Mathf.RoundToInt(reward / 5f) * 5;
+        int maxReward = Mathf.Max(300, Mathf.RoundToInt(mostExpensiveTowerCost * 0.3f / 5f) * 5);
+        return Mathf.Clamp(roundedReward, 20, maxReward);
+    }
+
+    int GetCheapestTowerCost()
+    {
+        var buildOptions = BuildDefaultTowerArchetypes();
+        int cheapest = int.MaxValue;
+        foreach (var option in buildOptions)
+        {
+            if (option == null)
+            {
+                continue;
+            }
+
+            cheapest = Mathf.Min(cheapest, option.cost);
+        }
+
+        return cheapest == int.MaxValue ? 250 : cheapest;
+    }
+
+    int GetMostExpensiveTowerCost()
+    {
+        var buildOptions = BuildDefaultTowerArchetypes();
+        int mostExpensive = 0;
+        foreach (var option in buildOptions)
+        {
+            if (option == null)
+            {
+                continue;
+            }
+
+            mostExpensive = Mathf.Max(mostExpensive, option.cost);
+        }
+
+        return mostExpensive <= 0 ? 1000 : mostExpensive;
+    }
+
     int ScaleRewardForDifficulty(int baseReward)
     {
         int scaledReward = Mathf.RoundToInt(baseReward * GetDifficultyConfig().rewardMultiplier / 5f) * 5;
@@ -773,7 +842,7 @@ public class SampleSceneBootstrap : MonoBehaviour
                 health = 6f,
                 moveSpeed = 4.8f,
                 goalDamage = 1,
-                currencyReward = 25,
+                currencyReward = CalculateReward(6f, 4.8f, EnemyMovementKind.Ground, 1, 1, false),
                 spawnInterval = 0.5f,
                 visualScale = Vector3.one * 2f,
                 visualTint = new Color(1f, 0.95f, 0.85f)
@@ -787,7 +856,7 @@ public class SampleSceneBootstrap : MonoBehaviour
                 health = 12f,
                 moveSpeed = 5.1f,
                 goalDamage = 2,
-                currencyReward = 40,
+                currencyReward = CalculateReward(12f, 5.1f, EnemyMovementKind.Ground, 1, 2, true),
                 spawnInterval = 0.7f,
                 visualScale = Vector3.one * 2.15f,
                 visualTint = new Color(1f, 0.72f, 0.38f)
@@ -801,7 +870,7 @@ public class SampleSceneBootstrap : MonoBehaviour
                 health = 24f,
                 moveSpeed = 2f,
                 goalDamage = 2,
-                currencyReward = 65,
+                currencyReward = CalculateReward(24f, 2f, EnemyMovementKind.Ground, 1, 2, false),
                 spawnInterval = 1.35f,
                 visualScale = Vector3.one * 1.8f,
                 visualTint = new Color(0.78f, 0.86f, 0.9f)
@@ -815,7 +884,7 @@ public class SampleSceneBootstrap : MonoBehaviour
                 health = 14f,
                 moveSpeed = 3.2f,
                 goalDamage = 1,
-                currencyReward = 55,
+                currencyReward = CalculateReward(14f, 3.2f, EnemyMovementKind.Air, 1, 1, false),
                 spawnInterval = 1f,
                 visualScale = Vector3.one * 1.55f,
                 visualTint = new Color(0.82f, 0.94f, 1f)
@@ -836,7 +905,7 @@ public class SampleSceneBootstrap : MonoBehaviour
                 health = 7f,
                 moveSpeed = 5f,
                 goalDamage = 1,
-                currencyReward = 30,
+                currencyReward = CalculateReward(7f, 5f, EnemyMovementKind.Ground, 2, 1, false),
                 spawnInterval = 0.45f,
                 visualScale = Vector3.one * 2f,
                 visualTint = new Color(1f, 0.95f, 0.85f)
@@ -850,7 +919,7 @@ public class SampleSceneBootstrap : MonoBehaviour
                 health = 30f,
                 moveSpeed = 2.1f,
                 goalDamage = 2,
-                currencyReward = 75,
+                currencyReward = CalculateReward(30f, 2.1f, EnemyMovementKind.Ground, 2, 2, true),
                 spawnInterval = 1.15f,
                 visualScale = Vector3.one * 1.9f,
                 visualTint = new Color(0.78f, 0.86f, 0.9f)
@@ -864,7 +933,7 @@ public class SampleSceneBootstrap : MonoBehaviour
                 health = 18f,
                 moveSpeed = 3.3f,
                 goalDamage = 1,
-                currencyReward = 65,
+                currencyReward = CalculateReward(18f, 3.3f, EnemyMovementKind.Air, 2, 1, false),
                 spawnInterval = 0.85f,
                 visualScale = Vector3.one * 1.6f,
                 visualTint = new Color(0.82f, 0.94f, 1f)
@@ -878,7 +947,7 @@ public class SampleSceneBootstrap : MonoBehaviour
                 health = 26f,
                 moveSpeed = 2.8f,
                 goalDamage = 2,
-                currencyReward = 90,
+                currencyReward = CalculateReward(26f, 2.8f, EnemyMovementKind.Air, 2, 2, true),
                 spawnInterval = 1.05f,
                 visualScale = Vector3.one * 1.75f,
                 visualTint = new Color(1f, 0.88f, 0.55f)
@@ -892,7 +961,7 @@ public class SampleSceneBootstrap : MonoBehaviour
                 health = 90f,
                 moveSpeed = 1.2f,
                 goalDamage = 4,
-                currencyReward = 180,
+                currencyReward = CalculateReward(90f, 1.2f, EnemyMovementKind.Ground, 2, 4, true),
                 spawnInterval = 1.9f,
                 visualScale = Vector3.one * 2.4f,
                 visualTint = new Color(0.95f, 0.62f, 0.48f)
