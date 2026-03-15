@@ -18,6 +18,12 @@ public class SampleSceneBootstrap : MonoBehaviour
         "Assets/UnityTechnologies/TowerDefenseTemplate/Models/Units/Helicopter.fbx";
     const string BossVisualPrefabPath =
         "Assets/UnityTechnologies/TowerDefenseTemplate/Models/Units/BossTank_Base.fbx";
+    const string MachineGunTowerPrefabPath =
+        "Assets/UnityTechnologies/TowerDefenseTemplate/Prefabs/Towers/MachineGun/MachineGunTower.prefab";
+    const string LaserTowerPrefabPath =
+        "Assets/UnityTechnologies/TowerDefenseTemplate/Prefabs/Towers/Laser/LaserTower.prefab";
+    const string RocketTowerPrefabPath =
+        "Assets/UnityTechnologies/TowerDefenseTemplate/Prefabs/Towers/Rocket/RocketTower.prefab";
 
     public string homeBaseObjectName = "HeadQuarters";
     public string goalObjectName = "END";
@@ -31,7 +37,11 @@ public class SampleSceneBootstrap : MonoBehaviour
     public GameObject tankVisualPrefab;
     public GameObject helicopterVisualPrefab;
     public GameObject bossVisualPrefab;
+    public TowerDefense.Towers.Tower machineGunTowerPrefab;
+    public TowerDefense.Towers.Tower laserTowerPrefab;
+    public TowerDefense.Towers.Tower rocketTowerPrefab;
     public SimpleEnemyArchetype[] enemyArchetypes;
+    public SimpleTowerArchetype[] towerArchetypes;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void AutoBootstrap()
@@ -68,6 +78,14 @@ public class SampleSceneBootstrap : MonoBehaviour
             bossVisualPrefab != null)
         {
             enemyArchetypes = BuildDefaultEnemyArchetypes();
+        }
+
+        if ((towerArchetypes == null || towerArchetypes.Length == 0) &&
+            machineGunTowerPrefab != null &&
+            laserTowerPrefab != null &&
+            rocketTowerPrefab != null)
+        {
+            towerArchetypes = BuildDefaultTowerArchetypes();
         }
     }
 
@@ -107,6 +125,21 @@ public class SampleSceneBootstrap : MonoBehaviour
         if (bossVisualPrefab == null)
         {
             bossVisualPrefab = LoadPrefabAsset(BossVisualPrefabPath);
+        }
+
+        if (machineGunTowerPrefab == null)
+        {
+            machineGunTowerPrefab = LoadPrefabComponent<TowerDefense.Towers.Tower>(MachineGunTowerPrefabPath);
+        }
+
+        if (laserTowerPrefab == null)
+        {
+            laserTowerPrefab = LoadPrefabComponent<TowerDefense.Towers.Tower>(LaserTowerPrefabPath);
+        }
+
+        if (rocketTowerPrefab == null)
+        {
+            rocketTowerPrefab = LoadPrefabComponent<TowerDefense.Towers.Tower>(RocketTowerPrefabPath);
         }
 #endif
     }
@@ -403,6 +436,46 @@ public class SampleSceneBootstrap : MonoBehaviour
     SimpleEnemyArchetype[] BuildDefaultEnemyArchetypes()
     {
         return CombineArchetypeArrays(BuildWaveOneArchetypes(), BuildWaveTwoArchetypes());
+    }
+
+    SimpleTowerArchetype[] BuildDefaultTowerArchetypes()
+    {
+        return new[]
+        {
+            new SimpleTowerArchetype
+            {
+                displayName = "MachineGun_All",
+                towerPrefab = machineGunTowerPrefab,
+                cost = 250,
+                level = 2,
+                damage = 1f,
+                fireRate = 10f,
+                targetMode = TowerTargetMode.All,
+                uiColor = new Color(0.73f, 0.9f, 0.84f, 0.95f)
+            },
+            new SimpleTowerArchetype
+            {
+                displayName = "Laser_AirOnly",
+                towerPrefab = laserTowerPrefab,
+                cost = 450,
+                level = 2,
+                damage = 3.9f,
+                fireRate = 2.4f,
+                targetMode = TowerTargetMode.AirOnly,
+                uiColor = new Color(0.99f, 0.89f, 0.48f, 0.95f)
+            },
+            new SimpleTowerArchetype
+            {
+                displayName = "Rocket_GroundOnly",
+                towerPrefab = rocketTowerPrefab,
+                cost = 1000,
+                level = 2,
+                damage = 7.2f,
+                fireRate = 1.05f,
+                targetMode = TowerTargetMode.GroundOnly,
+                uiColor = new Color(0.96f, 0.67f, 0.48f, 0.95f)
+            }
+        };
     }
 
     SimpleEnemyArchetype[] CombineArchetypeArrays(SimpleEnemyArchetype[] first, SimpleEnemyArchetype[] second)
