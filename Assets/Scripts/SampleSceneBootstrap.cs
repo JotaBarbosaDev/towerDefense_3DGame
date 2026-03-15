@@ -1,10 +1,12 @@
 using System.Collections;
+using System.Collections.Generic;
 using Core.Health;
-using Core.Utilities;
 using TowerDefense.Affectors;
 using TowerDefense.Targetting;
 using TowerDefense.Towers;
+using Core.Utilities;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -40,11 +42,14 @@ public class SampleSceneBootstrap : MonoBehaviour
     public GameObject tankVisualPrefab;
     public GameObject helicopterVisualPrefab;
     public GameObject bossVisualPrefab;
-    public TowerDefense.Towers.Tower machineGunTowerPrefab;
-    public TowerDefense.Towers.Tower laserTowerPrefab;
-    public TowerDefense.Towers.Tower rocketTowerPrefab;
+    public Tower machineGunTowerPrefab;
+    public Tower laserTowerPrefab;
+    public Tower rocketTowerPrefab;
     public SimpleEnemyArchetype[] enemyArchetypes;
     public SimpleTowerArchetype[] towerArchetypes;
+
+    Level1DifficultyConfig m_DifficultyConfig;
+    SimpleHomeBaseHealth m_HomeBase;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void AutoBootstrap()
@@ -94,13 +99,23 @@ public class SampleSceneBootstrap : MonoBehaviour
 
     void Start()
     {
+        if (!Level1GameSession.ConsumeLevelStartRequest(SceneManager.GetActiveScene().name))
+        {
+            SceneManager.LoadScene(Level1GameSession.MenuSceneName);
+            return;
+        }
+
+        m_DifficultyConfig = Level1GameSession.currentConfig;
         EnsureDefaultReferences();
         ConfigureCurrency();
         ConfigureBuildSystem();
         ClearExistingEnemies();
         ConfigureGoal();
         StartCoroutine(SpawnLevelOneWaves());
-        Debug.Log("[SampleSceneBootstrap] Sample scene defense systems ready with 2 waves.", this);
+        Debug.Log(
+            "[SampleSceneBootstrap] Level 1 (" + GetDifficultyConfig().displayName + ") active with " +
+            GetTowerArchetypes().Length + " build options and 2 waves.",
+            this);
     }
 
     void EnsureDefaultReferences()
@@ -133,28 +148,19 @@ public class SampleSceneBootstrap : MonoBehaviour
 
         if (machineGunTowerPrefab == null)
         {
-            machineGunTowerPrefab = LoadPrefabComponent<TowerDefense.Towers.Tower>(MachineGunTowerPrefabPath);
+            machineGunTowerPrefab = LoadPrefabComponent<Tower>(MachineGunTowerPrefabPath);
         }
 
         if (laserTowerPrefab == null)
         {
-            laserTowerPrefab = LoadPrefabComponent<TowerDefense.Towers.Tower>(LaserTowerPrefabPath);
+            laserTowerPrefab = LoadPrefabComponent<Tower>(LaserTowerPrefabPath);
         }
 
         if (rocketTowerPrefab == null)
         {
-            rocketTowerPrefab = LoadPrefabComponent<TowerDefense.Towers.Tower>(RocketTowerPrefabPath);
+            rocketTowerPrefab = LoadPrefabComponent<Tower>(RocketTowerPrefabPath);
         }
 #endif
-    }
-
-    void ClearExistingEnemies()
-    {
-        var movers = FindObjectsOfType<NPCMover>();
-        foreach (var mover in movers)
-        {
-            Destroy(mover.gameObject);
-        }
     }
 
     void ConfigureCurrency()
@@ -166,7 +172,7 @@ public class SampleSceneBootstrap : MonoBehaviour
             currencyManager = currencyObject.AddComponent<SimpleCurrencyManager>();
         }
 
-        currencyManager.startingCurrency = Mathf.Max(0, startingCurrency);
+        currencyManager.startingCurrency = CalculateStartingCurrency();
         currencyManager.InitializeCurrency();
 
         var currencyHud = currencyManager.GetComponent<SimpleCurrencyHUD>();
@@ -194,6 +200,15 @@ public class SampleSceneBootstrap : MonoBehaviour
             0.68f);
     }
 
+    void ClearExistingEnemies()
+    {
+        var movers = FindObjectsOfType<NPCMover>();
+        foreach (var mover in movers)
+        {
+            Destroy(mover.gameObject);
+        }
+    }
+
     void ConfigureGoal()
     {
         GameObject homeBaseObject = GameObject.Find(homeBaseObjectName);
@@ -216,8 +231,9 @@ public class SampleSceneBootstrap : MonoBehaviour
             homeBase = homeBaseObject.AddComponent<SimpleHomeBaseHealth>();
         }
 
-        homeBase.maxHealth = Mathf.Max(1, homeBaseHealth);
+        homeBase.maxHealth = Mathf.Max(1, GetDifficultyConfig().homeBaseHealth);
         homeBase.ResetHealth();
+        m_HomeBase = homeBase;
 
         var goal = goalObject.GetComponent<SimpleEnemyGoal>();
         if (goal == null)
@@ -249,24 +265,6 @@ public class SampleSceneBootstrap : MonoBehaviour
         Bounds visualBounds = GetRenderableBounds(visual);
         float heightOffset = Mathf.Clamp(visualBounds.max.y - enemy.transform.position.y + 0.35f, 1.6f, 4.5f);
         healthBar.transform.localPosition = new Vector3(0f, heightOffset, 0f);
-    }
-
-    void DisableVisualBehaviours(GameObject visual)
-    {
-        if (visual == null)
-        {
-            return;
-        }
-
-        foreach (var behaviour in visual.GetComponentsInChildren<Behaviour>(true))
-        {
-            behaviour.enabled = false;
-        }
-
-        foreach (var collider in visual.GetComponentsInChildren<Collider>(true))
-        {
-            collider.enabled = false;
-        }
     }
 
     void ConfigureTower(Tower tower, SimpleTowerArchetype archetype)
@@ -312,10 +310,11 @@ public class SampleSceneBootstrap : MonoBehaviour
                 continue;
             }
 
-            for (int i = 0; i < archetype.count; i++)
+            int spawnCount = GetSpawnCount(archetype);
+            for (int i = 0; i < spawnCount; i++)
             {
                 SpawnEnemy(archetype, i + 1);
-                yield return new WaitForSeconds(archetype.spawnInterval);
+                yield return new WaitForSeconds(archetype.spawnInterval * GetDifficultyConfig().spawnIntervalMultiplier);
             }
         }
     }
@@ -340,7 +339,7 @@ public class SampleSceneBootstrap : MonoBehaviour
         mover.destino = endObject.transform;
 
         var agent = enemyObject.AddComponent<UnityEngine.AI.NavMeshAgent>();
-        agent.speed = archetype.moveSpeed;
+        agent.speed = archetype.moveSpeed * GetDifficultyConfig().enemySpeedMultiplier;
         agent.angularSpeed = 120f;
         agent.acceleration = 12f;
         agent.radius = 0.6f;
@@ -349,10 +348,10 @@ public class SampleSceneBootstrap : MonoBehaviour
 
         var enemy = enemyObject.AddComponent<SimpleEnemyTargetable>();
         enemy.Configure(
-            archetype.health,
+            archetype.health * GetDifficultyConfig().enemyHealthMultiplier,
             archetype.movementKind,
             archetype.goalDamage,
-            archetype.currencyReward);
+            ScaleRewardForDifficulty(archetype.currencyReward));
 
         GameObject visual = Instantiate(archetype.visualPrefab, enemyObject.transform);
         DisableVisualBehaviours(visual);
@@ -369,6 +368,174 @@ public class SampleSceneBootstrap : MonoBehaviour
         enemy.FitColliderToVisual(GetRenderableBounds(visual));
         ApplyVisualTint(visual, archetype.visualTint);
         AttachHealthBar(enemy, visual);
+    }
+
+    void DisableVisualBehaviours(GameObject visual)
+    {
+        if (visual == null)
+        {
+            return;
+        }
+
+        foreach (var behaviour in visual.GetComponentsInChildren<Behaviour>(true))
+        {
+            behaviour.enabled = false;
+        }
+
+        foreach (var collider in visual.GetComponentsInChildren<Collider>(true))
+        {
+            collider.enabled = false;
+        }
+    }
+
+    public Tower PlaceBuiltTower(SimpleTowerArchetype archetype, Vector3 position)
+    {
+        if (archetype == null || archetype.towerPrefab == null)
+        {
+            return null;
+        }
+
+        Tower tower = Instantiate(
+            archetype.towerPrefab,
+            position,
+            Quaternion.Euler(archetype.eulerAngles));
+
+        tower.name = archetype.displayName;
+        tower.Initialize(null, IntVector2.zero);
+        tower.UpgradeTowerToLevel(archetype.level);
+        ConfigureTower(tower, archetype);
+        Debug.Log("[SampleSceneBootstrap] Placed tower: " + archetype.displayName, tower);
+        return tower;
+    }
+
+    void ReplaceTargetter(AttackAffector affector, TowerTargetMode targetMode)
+    {
+        if (affector == null || affector.towerTargetter == null)
+        {
+            return;
+        }
+
+        LayerMask allowedLayers;
+        if (targetMode == TowerTargetMode.GroundOnly)
+        {
+            allowedLayers = 1 << 11;
+        }
+        else if (targetMode == TowerTargetMode.AirOnly)
+        {
+            allowedLayers = 1 << 14;
+        }
+        else
+        {
+            allowedLayers = (1 << 11) | (1 << 14);
+        }
+
+        Targetter oldTargetter = affector.towerTargetter;
+        var existingFiltered = oldTargetter as LayerFilteredTargetter;
+        if (existingFiltered != null)
+        {
+            existingFiltered.allowedLayers = allowedLayers;
+            return;
+        }
+
+        var filteredTargetter = oldTargetter.gameObject.AddComponent<LayerFilteredTargetter>();
+        filteredTargetter.turret = oldTargetter.turret;
+        filteredTargetter.turretXRotationRange = oldTargetter.turretXRotationRange;
+        filteredTargetter.onlyYTurretRotation = oldTargetter.onlyYTurretRotation;
+        filteredTargetter.searchRate = oldTargetter.searchRate;
+        filteredTargetter.idleRotationSpeed = oldTargetter.idleRotationSpeed;
+        filteredTargetter.idleCorrectionTime = oldTargetter.idleCorrectionTime;
+        filteredTargetter.attachedCollider = oldTargetter.attachedCollider;
+        filteredTargetter.idleWaitTime = oldTargetter.idleWaitTime;
+        filteredTargetter.allowedLayers = allowedLayers;
+
+        affector.towerTargetter = filteredTargetter;
+        Destroy(oldTargetter);
+    }
+
+    SimpleTowerArchetype[] GetTowerArchetypes()
+    {
+        EnsureDefaultReferences();
+        var config = GetDifficultyConfig();
+        var defaults = BuildDefaultTowerArchetypes();
+        var filtered = new List<SimpleTowerArchetype>();
+
+        foreach (var towerOption in defaults)
+        {
+            if (towerOption == null || towerOption.towerPrefab == null)
+            {
+                continue;
+            }
+
+            if (towerOption.towerPrefab == machineGunTowerPrefab && config.allowMachineGun)
+            {
+                filtered.Add(towerOption);
+                continue;
+            }
+
+            if (towerOption.towerPrefab == laserTowerPrefab && config.allowLaser)
+            {
+                filtered.Add(towerOption);
+                continue;
+            }
+
+            if (towerOption.towerPrefab == rocketTowerPrefab && config.allowRocket)
+            {
+                filtered.Add(towerOption);
+            }
+        }
+
+        if (filtered.Count == 0 && machineGunTowerPrefab != null)
+        {
+            filtered.Add(defaults[0]);
+        }
+
+        return filtered.ToArray();
+    }
+
+    int CalculateStartingCurrency()
+    {
+        return Mathf.Max(0, GetDifficultyConfig().startingCurrency);
+    }
+
+    int ScaleRewardForDifficulty(int baseReward)
+    {
+        int scaledReward = Mathf.RoundToInt(baseReward * GetDifficultyConfig().rewardMultiplier / 5f) * 5;
+        return Mathf.Max(20, scaledReward);
+    }
+
+    int GetSpawnCount(SimpleEnemyArchetype archetype)
+    {
+        if (archetype == null)
+        {
+            return 0;
+        }
+
+        float scaledCount = archetype.count * GetDifficultyConfig().enemyCountMultiplier;
+        int roundedCount;
+        if (GetDifficultyConfig().enemyCountMultiplier < 1f)
+        {
+            roundedCount = Mathf.FloorToInt(scaledCount);
+        }
+        else if (GetDifficultyConfig().enemyCountMultiplier > 1f)
+        {
+            roundedCount = Mathf.CeilToInt(scaledCount);
+        }
+        else
+        {
+            roundedCount = Mathf.RoundToInt(scaledCount);
+        }
+
+        return Mathf.Max(1, roundedCount);
+    }
+
+    Level1DifficultyConfig GetDifficultyConfig()
+    {
+        if (m_DifficultyConfig == null)
+        {
+            m_DifficultyConfig = Level1GameSession.currentConfig;
+        }
+
+        return m_DifficultyConfig;
     }
 
 #if UNITY_EDITOR
@@ -474,86 +641,6 @@ public class SampleSceneBootstrap : MonoBehaviour
         return bounds;
     }
 
-    public Tower PlaceBuiltTower(SimpleTowerArchetype archetype, Vector3 position)
-    {
-        if (archetype == null || archetype.towerPrefab == null)
-        {
-            return null;
-        }
-
-        Tower tower = Instantiate(
-            archetype.towerPrefab,
-            position,
-            Quaternion.Euler(archetype.eulerAngles));
-
-        tower.name = archetype.displayName;
-        tower.Initialize(null, IntVector2.zero);
-        tower.UpgradeTowerToLevel(archetype.level);
-        ConfigureTower(tower, archetype);
-        Debug.Log("[SampleSceneBootstrap] Placed tower: " + archetype.displayName, tower);
-        return tower;
-    }
-
-    void ReplaceTargetter(AttackAffector affector, TowerTargetMode targetMode)
-    {
-        if (affector == null || affector.towerTargetter == null)
-        {
-            return;
-        }
-
-        LayerMask allowedLayers;
-        if (targetMode == TowerTargetMode.GroundOnly)
-        {
-            allowedLayers = 1 << 11;
-        }
-        else if (targetMode == TowerTargetMode.AirOnly)
-        {
-            allowedLayers = 1 << 14;
-        }
-        else
-        {
-            allowedLayers = (1 << 11) | (1 << 14);
-        }
-
-        Targetter oldTargetter = affector.towerTargetter;
-        var existingFiltered = oldTargetter as LayerFilteredTargetter;
-        if (existingFiltered != null)
-        {
-            existingFiltered.allowedLayers = allowedLayers;
-            return;
-        }
-
-        var filteredTargetter = oldTargetter.gameObject.AddComponent<LayerFilteredTargetter>();
-        filteredTargetter.turret = oldTargetter.turret;
-        filteredTargetter.turretXRotationRange = oldTargetter.turretXRotationRange;
-        filteredTargetter.onlyYTurretRotation = oldTargetter.onlyYTurretRotation;
-        filteredTargetter.searchRate = oldTargetter.searchRate;
-        filteredTargetter.idleRotationSpeed = oldTargetter.idleRotationSpeed;
-        filteredTargetter.idleCorrectionTime = oldTargetter.idleCorrectionTime;
-        filteredTargetter.attachedCollider = oldTargetter.attachedCollider;
-        filteredTargetter.idleWaitTime = oldTargetter.idleWaitTime;
-        filteredTargetter.allowedLayers = allowedLayers;
-
-        affector.towerTargetter = filteredTargetter;
-        Destroy(oldTargetter);
-    }
-
-    SimpleEnemyArchetype[] BuildDefaultEnemyArchetypes()
-    {
-        return CombineArchetypeArrays(BuildWaveOneArchetypes(), BuildWaveTwoArchetypes());
-    }
-
-    SimpleTowerArchetype[] GetTowerArchetypes()
-    {
-        if (towerArchetypes != null && towerArchetypes.Length > 0)
-        {
-            return towerArchetypes;
-        }
-
-        towerArchetypes = BuildDefaultTowerArchetypes();
-        return towerArchetypes;
-    }
-
     SimpleTowerArchetype[] BuildDefaultTowerArchetypes()
     {
         return new[]
@@ -592,6 +679,11 @@ public class SampleSceneBootstrap : MonoBehaviour
                 uiColor = new Color(0.96f, 0.67f, 0.48f, 0.95f)
             }
         };
+    }
+
+    SimpleEnemyArchetype[] BuildDefaultEnemyArchetypes()
+    {
+        return CombineArchetypeArrays(BuildWaveOneArchetypes(), BuildWaveTwoArchetypes());
     }
 
     SimpleEnemyArchetype[] CombineArchetypeArrays(SimpleEnemyArchetype[] first, SimpleEnemyArchetype[] second)
