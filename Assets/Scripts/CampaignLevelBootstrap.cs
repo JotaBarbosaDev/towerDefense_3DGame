@@ -48,6 +48,12 @@ public class CampaignLevelBootstrap : MonoBehaviour
             return;
         }
 
+        if (!CampaignProgression.IsSceneUnlocked(sceneName))
+        {
+            SceneManager.LoadScene(Level1GameSession.MenuSceneName);
+            return;
+        }
+
         m_LevelManager = FindObjectOfType<LevelManager>();
         if (m_LevelManager == null)
         {

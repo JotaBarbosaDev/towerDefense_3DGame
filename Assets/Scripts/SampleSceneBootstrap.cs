@@ -50,6 +50,7 @@ public class SampleSceneBootstrap : MonoBehaviour
 
     Level1DifficultyConfig m_DifficultyConfig;
     SimpleHomeBaseHealth m_HomeBase;
+    SimpleCampaignEndGameUI m_EndGameUi;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void AutoBootstrap()
@@ -111,6 +112,7 @@ public class SampleSceneBootstrap : MonoBehaviour
         ConfigureBuildSystem();
         ClearExistingEnemies();
         ConfigureGoal();
+        ConfigureEndGame();
         StartCoroutine(SpawnLevelOneWaves());
         Debug.Log(
             "[SampleSceneBootstrap] Level 1 (" + GetDifficultyConfig().displayName + ") active with " +
@@ -294,6 +296,28 @@ public class SampleSceneBootstrap : MonoBehaviour
         yield return StartCoroutine(SpawnWave(BuildWaveOneArchetypes()));
         yield return new WaitForSeconds(9f);
         yield return StartCoroutine(SpawnWave(BuildWaveTwoArchetypes()));
+
+        if (m_EndGameUi != null)
+        {
+            m_EndGameUi.NotifySpawningCompleted();
+        }
+    }
+
+    void ConfigureEndGame()
+    {
+        if (m_HomeBase == null)
+        {
+            return;
+        }
+
+        if (m_EndGameUi == null)
+        {
+            var endGameObject = new GameObject("SimpleCampaignEndGameUI");
+            endGameObject.transform.SetParent(transform, false);
+            m_EndGameUi = endGameObject.AddComponent<SimpleCampaignEndGameUI>();
+        }
+
+        m_EndGameUi.Configure(m_HomeBase, Level1GameSession.Level2SceneName);
     }
 
     IEnumerator SpawnWave(SimpleEnemyArchetype[] archetypes)
