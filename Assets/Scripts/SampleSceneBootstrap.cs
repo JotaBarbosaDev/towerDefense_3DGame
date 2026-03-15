@@ -1,4 +1,5 @@
 using Core.Health;
+using Core.Utilities;
 using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -29,6 +30,7 @@ public class SampleSceneBootstrap : MonoBehaviour
     public GameObject tankVisualPrefab;
     public GameObject helicopterVisualPrefab;
     public GameObject bossVisualPrefab;
+    public SimpleEnemyArchetype[] enemyArchetypes;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void AutoBootstrap()
@@ -62,7 +64,9 @@ public class SampleSceneBootstrap : MonoBehaviour
     void Start()
     {
         EnsureDefaultReferences();
-        Debug.Log("[SampleSceneBootstrap] Sample scene entrypoint active.", this);
+        ClearExistingEnemies();
+        ConfigureGoal();
+        Debug.Log("[SampleSceneBootstrap] Sample scene defense systems ready.", this);
     }
 
     void EnsureDefaultReferences()
@@ -95,6 +99,90 @@ public class SampleSceneBootstrap : MonoBehaviour
 #endif
     }
 
+    void ClearExistingEnemies()
+    {
+        var movers = FindObjectsOfType<NPCMover>();
+        foreach (var mover in movers)
+        {
+            Destroy(mover.gameObject);
+        }
+    }
+
+    void ConfigureGoal()
+    {
+        GameObject homeBaseObject = GameObject.Find(homeBaseObjectName);
+        if (homeBaseObject == null)
+        {
+            Debug.LogError("[SampleSceneBootstrap] Home base object not found: " + homeBaseObjectName, this);
+            return;
+        }
+
+        GameObject goalObject = GameObject.Find(goalObjectName);
+        if (goalObject == null)
+        {
+            Debug.LogError("[SampleSceneBootstrap] Goal object not found: " + goalObjectName, this);
+            return;
+        }
+
+        var homeBase = homeBaseObject.GetComponent<SimpleHomeBaseHealth>();
+        if (homeBase == null)
+        {
+            homeBase = homeBaseObject.AddComponent<SimpleHomeBaseHealth>();
+        }
+
+        homeBase.maxHealth = Mathf.Max(1, homeBaseHealth);
+        homeBase.ResetHealth();
+
+        var goal = goalObject.GetComponent<SimpleEnemyGoal>();
+        if (goal == null)
+        {
+            goal = goalObject.AddComponent<SimpleEnemyGoal>();
+        }
+
+        goal.Configure(homeBase, damagePerEnemy);
+    }
+
+    void AttachHealthBar(SimpleEnemyTargetable enemy, GameObject visual)
+    {
+        if (enemy == null || healthBarPrefab == null)
+        {
+            return;
+        }
+
+        var healthBar = enemy.GetComponentInChildren<HealthVisualizer>();
+        if (healthBar == null)
+        {
+            healthBar = Instantiate(healthBarPrefab, enemy.transform);
+            healthBar.transform.localPosition = new Vector3(0f, 2.2f, 0f);
+        }
+
+        healthBar.damageableBehaviour = enemy;
+        healthBar.AssignDamageable(enemy.configuration);
+        healthBar.UpdateHealth(enemy.configuration.normalisedHealth);
+
+        Bounds visualBounds = GetRenderableBounds(visual);
+        float heightOffset = Mathf.Clamp(visualBounds.max.y - enemy.transform.position.y + 0.35f, 1.6f, 4.5f);
+        healthBar.transform.localPosition = new Vector3(0f, heightOffset, 0f);
+    }
+
+    void DisableVisualBehaviours(GameObject visual)
+    {
+        if (visual == null)
+        {
+            return;
+        }
+
+        foreach (var behaviour in visual.GetComponentsInChildren<Behaviour>(true))
+        {
+            behaviour.enabled = false;
+        }
+
+        foreach (var collider in visual.GetComponentsInChildren<Collider>(true))
+        {
+            collider.enabled = false;
+        }
+    }
+
 #if UNITY_EDITOR
     static GameObject LoadPrefabAsset(string assetPath)
     {
@@ -112,4 +200,89 @@ public class SampleSceneBootstrap : MonoBehaviour
         return prefab.GetComponent<T>();
     }
 #endif
+
+    void ApplyVisualTint(GameObject visual, Color tint)
+    {
+        if (visual == null || tint == Color.white)
+        {
+            return;
+        }
+
+        var renderers = visual.GetComponentsInChildren<Renderer>(true);
+        foreach (var renderer in renderers)
+        {
+            var materials = renderer.materials;
+            foreach (var material in materials)
+            {
+                if (material == null)
+                {
+                    continue;
+                }
+
+                if (material.HasProperty("_Color"))
+                {
+                    material.color = tint;
+                }
+
+                if (material.HasProperty("_BaseColor"))
+                {
+                    material.SetColor("_BaseColor", tint);
+                }
+            }
+        }
+    }
+
+    void NormalizeVisualScale(GameObject visual, Vector3 desiredSize)
+    {
+        if (visual == null)
+        {
+            return;
+        }
+
+        Bounds bounds = GetRenderableBounds(visual);
+        float currentMajorSize = Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z);
+        float targetMajorSize = Mathf.Max(desiredSize.x, desiredSize.y, desiredSize.z);
+        if (currentMajorSize <= 0.001f || targetMajorSize <= 0.001f)
+        {
+            visual.transform.localScale = desiredSize;
+            return;
+        }
+
+        float scaleFactor = targetMajorSize / currentMajorSize;
+        visual.transform.localScale = Vector3.one * scaleFactor;
+    }
+
+    void LiftVisualToGround(GameObject visual, float groundY)
+    {
+        if (visual == null)
+        {
+            return;
+        }
+
+        Bounds bounds = GetRenderableBounds(visual);
+        float lift = groundY - bounds.min.y;
+        visual.transform.position += Vector3.up * lift;
+    }
+
+    Bounds GetRenderableBounds(GameObject visual)
+    {
+        if (visual == null)
+        {
+            return new Bounds(Vector3.zero, Vector3.one);
+        }
+
+        var renderers = visual.GetComponentsInChildren<Renderer>(true);
+        if (renderers.Length == 0)
+        {
+            return new Bounds(visual.transform.position, Vector3.one);
+        }
+
+        Bounds bounds = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++)
+        {
+            bounds.Encapsulate(renderers[i].bounds);
+        }
+
+        return bounds;
+    }
 }
