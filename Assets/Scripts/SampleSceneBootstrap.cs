@@ -1,6 +1,8 @@
 using System.Collections;
 using Core.Health;
 using Core.Utilities;
+using TowerDefense.Affectors;
+using TowerDefense.Targetting;
 using TowerDefense.Towers;
 using UnityEngine;
 #if UNITY_EDITOR
@@ -267,6 +269,27 @@ public class SampleSceneBootstrap : MonoBehaviour
         }
     }
 
+    void ConfigureTower(Tower tower, SimpleTowerArchetype archetype)
+    {
+        if (tower == null || tower.currentTowerLevel == null || archetype == null)
+        {
+            return;
+        }
+
+        var affectors = tower.currentTowerLevel.GetComponentsInChildren<AttackAffector>(true);
+        foreach (var affector in affectors)
+        {
+            affector.fireRate = archetype.fireRate;
+            if (affector.damagerProjectile != null)
+            {
+                affector.damagerProjectile.SetDamage(archetype.damage);
+            }
+
+            ReplaceTargetter(affector, archetype.targetMode);
+            affector.Initialize(tower.configuration.alignmentProvider, tower.enemyLayerMask);
+        }
+    }
+
     IEnumerator SpawnLevelOneWaves()
     {
         yield return new WaitForSeconds(Mathf.Max(waveStartDelay, 8f));
@@ -466,8 +489,53 @@ public class SampleSceneBootstrap : MonoBehaviour
         tower.name = archetype.displayName;
         tower.Initialize(null, IntVector2.zero);
         tower.UpgradeTowerToLevel(archetype.level);
+        ConfigureTower(tower, archetype);
         Debug.Log("[SampleSceneBootstrap] Placed tower: " + archetype.displayName, tower);
         return tower;
+    }
+
+    void ReplaceTargetter(AttackAffector affector, TowerTargetMode targetMode)
+    {
+        if (affector == null || affector.towerTargetter == null)
+        {
+            return;
+        }
+
+        LayerMask allowedLayers;
+        if (targetMode == TowerTargetMode.GroundOnly)
+        {
+            allowedLayers = 1 << 11;
+        }
+        else if (targetMode == TowerTargetMode.AirOnly)
+        {
+            allowedLayers = 1 << 14;
+        }
+        else
+        {
+            allowedLayers = (1 << 11) | (1 << 14);
+        }
+
+        Targetter oldTargetter = affector.towerTargetter;
+        var existingFiltered = oldTargetter as LayerFilteredTargetter;
+        if (existingFiltered != null)
+        {
+            existingFiltered.allowedLayers = allowedLayers;
+            return;
+        }
+
+        var filteredTargetter = oldTargetter.gameObject.AddComponent<LayerFilteredTargetter>();
+        filteredTargetter.turret = oldTargetter.turret;
+        filteredTargetter.turretXRotationRange = oldTargetter.turretXRotationRange;
+        filteredTargetter.onlyYTurretRotation = oldTargetter.onlyYTurretRotation;
+        filteredTargetter.searchRate = oldTargetter.searchRate;
+        filteredTargetter.idleRotationSpeed = oldTargetter.idleRotationSpeed;
+        filteredTargetter.idleCorrectionTime = oldTargetter.idleCorrectionTime;
+        filteredTargetter.attachedCollider = oldTargetter.attachedCollider;
+        filteredTargetter.idleWaitTime = oldTargetter.idleWaitTime;
+        filteredTargetter.allowedLayers = allowedLayers;
+
+        affector.towerTargetter = filteredTargetter;
+        Destroy(oldTargetter);
     }
 
     SimpleEnemyArchetype[] BuildDefaultEnemyArchetypes()
