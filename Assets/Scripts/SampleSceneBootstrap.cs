@@ -74,6 +74,7 @@ public class SampleSceneBootstrap : MonoBehaviour
     void Start()
     {
         EnsureDefaultReferences();
+        ConfigureCurrency();
         ClearExistingEnemies();
         ConfigureGoal();
         StartCoroutine(SpawnLevelOneWaves());
@@ -117,6 +118,27 @@ public class SampleSceneBootstrap : MonoBehaviour
         {
             Destroy(mover.gameObject);
         }
+    }
+
+    void ConfigureCurrency()
+    {
+        var currencyManager = FindObjectOfType<SimpleCurrencyManager>();
+        if (currencyManager == null)
+        {
+            var currencyObject = new GameObject("SimpleCurrencyManager");
+            currencyManager = currencyObject.AddComponent<SimpleCurrencyManager>();
+        }
+
+        currencyManager.startingCurrency = Mathf.Max(0, startingCurrency);
+        currencyManager.InitializeCurrency();
+
+        var currencyHud = currencyManager.GetComponent<SimpleCurrencyHUD>();
+        if (currencyHud == null)
+        {
+            currencyHud = currencyManager.gameObject.AddComponent<SimpleCurrencyHUD>();
+        }
+
+        currencyHud.Assign(currencyManager);
     }
 
     void ConfigureGoal()

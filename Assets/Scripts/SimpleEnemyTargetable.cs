@@ -9,6 +9,7 @@ public class SimpleEnemyTargetable : Targetable
     [Min(0)] public int currencyReward = 1;
     [SerializeField] CapsuleCollider hitCollider;
     bool m_IsInitialized;
+    bool m_RewardGranted;
 
     protected override void Awake()
     {
@@ -20,6 +21,7 @@ public class SimpleEnemyTargetable : Targetable
         EnsureCollider();
         ApplyHealthConfiguration();
         base.Awake();
+        died += OnDied;
         m_IsInitialized = true;
     }
 
@@ -27,6 +29,11 @@ public class SimpleEnemyTargetable : Targetable
     {
         base.Remove();
         Destroy(gameObject);
+    }
+
+    void OnDestroy()
+    {
+        died -= OnDied;
     }
 
     public void Configure(float health, EnemyMovementKind movementKind, int enemyGoalDamage, int enemyCurrencyReward)
@@ -84,5 +91,20 @@ public class SimpleEnemyTargetable : Targetable
     {
         configuration.SetMaxHealth(maxHealth, maxHealth);
         configuration.alignment = null;
+    }
+
+    void OnDied(DamageableBehaviour damageable)
+    {
+        if (m_RewardGranted || currencyReward <= 0)
+        {
+            return;
+        }
+
+        m_RewardGranted = true;
+
+        if (SimpleCurrencyManager.instance != null)
+        {
+            SimpleCurrencyManager.instance.AddCurrency(currencyReward);
+        }
     }
 }
