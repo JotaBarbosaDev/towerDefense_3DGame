@@ -1,6 +1,7 @@
 using System.Collections;
 using Core.Health;
 using Core.Utilities;
+using TowerDefense.Towers;
 using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -93,6 +94,7 @@ public class SampleSceneBootstrap : MonoBehaviour
     {
         EnsureDefaultReferences();
         ConfigureCurrency();
+        ConfigureBuildSystem();
         ClearExistingEnemies();
         ConfigureGoal();
         StartCoroutine(SpawnLevelOneWaves());
@@ -172,6 +174,22 @@ public class SampleSceneBootstrap : MonoBehaviour
         }
 
         currencyHud.Assign(currencyManager);
+    }
+
+    void ConfigureBuildSystem()
+    {
+        var buildManager = FindObjectOfType<SimpleBuildManager>();
+        if (buildManager == null)
+        {
+            var buildObject = new GameObject("SimpleBuildManager");
+            buildManager = buildObject.AddComponent<SimpleBuildManager>();
+        }
+
+        buildManager.Configure(
+            this,
+            GetTowerArchetypes(),
+            BuildDefaultSlotPositions(),
+            0.68f);
     }
 
     void ConfigureGoal()
@@ -433,9 +451,39 @@ public class SampleSceneBootstrap : MonoBehaviour
         return bounds;
     }
 
+    public Tower PlaceBuiltTower(SimpleTowerArchetype archetype, Vector3 position)
+    {
+        if (archetype == null || archetype.towerPrefab == null)
+        {
+            return null;
+        }
+
+        Tower tower = Instantiate(
+            archetype.towerPrefab,
+            position,
+            Quaternion.Euler(archetype.eulerAngles));
+
+        tower.name = archetype.displayName;
+        tower.Initialize(null, IntVector2.zero);
+        tower.UpgradeTowerToLevel(archetype.level);
+        Debug.Log("[SampleSceneBootstrap] Placed tower: " + archetype.displayName, tower);
+        return tower;
+    }
+
     SimpleEnemyArchetype[] BuildDefaultEnemyArchetypes()
     {
         return CombineArchetypeArrays(BuildWaveOneArchetypes(), BuildWaveTwoArchetypes());
+    }
+
+    SimpleTowerArchetype[] GetTowerArchetypes()
+    {
+        if (towerArchetypes != null && towerArchetypes.Length > 0)
+        {
+            return towerArchetypes;
+        }
+
+        towerArchetypes = BuildDefaultTowerArchetypes();
+        return towerArchetypes;
     }
 
     SimpleTowerArchetype[] BuildDefaultTowerArchetypes()
@@ -495,6 +543,37 @@ public class SampleSceneBootstrap : MonoBehaviour
         }
 
         return combined;
+    }
+
+    Vector3[] BuildDefaultSlotPositions()
+    {
+        GameObject startObject = GameObject.Find("START");
+        GameObject endObject = GameObject.Find(goalObjectName);
+
+        Vector3 start = startObject == null ? new Vector3(-20f, 0.68f, 6f) : startObject.transform.position;
+        Vector3 end = endObject == null ? new Vector3(12f, 0.68f, 2f) : endObject.transform.position;
+
+        Vector3 flatDirection = end - start;
+        flatDirection.y = 0f;
+        if (flatDirection.sqrMagnitude < 0.01f)
+        {
+            flatDirection = Vector3.right;
+        }
+
+        flatDirection.Normalize();
+        Vector3 side = Vector3.Cross(Vector3.up, flatDirection).normalized;
+        float[] fractions = { 0.2f, 0.28f, 0.4f, 0.5f, 0.62f, 0.72f, 0.84f };
+        float[] offsets = { 3.4f, -3.2f, 3.6f, -3.6f, 3.3f, -3.1f, 2.8f };
+        var positions = new Vector3[fractions.Length];
+
+        for (int i = 0; i < positions.Length; i++)
+        {
+            Vector3 pathPoint = Vector3.Lerp(start, end, fractions[i]);
+            positions[i] = pathPoint + side * offsets[i];
+            positions[i].y = 0.68f;
+        }
+
+        return positions;
     }
 
     SimpleEnemyArchetype[] BuildWaveOneArchetypes()
