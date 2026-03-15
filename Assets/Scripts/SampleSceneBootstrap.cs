@@ -1,3 +1,4 @@
+using System.Collections;
 using Core.Health;
 using Core.Utilities;
 using UnityEngine;
@@ -59,6 +60,15 @@ public class SampleSceneBootstrap : MonoBehaviour
         }
 
         EnsureDefaultReferences();
+
+        if ((enemyArchetypes == null || enemyArchetypes.Length == 0) &&
+            buggyVisualPrefab != null &&
+            tankVisualPrefab != null &&
+            helicopterVisualPrefab != null &&
+            bossVisualPrefab != null)
+        {
+            enemyArchetypes = BuildDefaultEnemyArchetypes();
+        }
     }
 
     void Start()
@@ -66,7 +76,8 @@ public class SampleSceneBootstrap : MonoBehaviour
         EnsureDefaultReferences();
         ClearExistingEnemies();
         ConfigureGoal();
-        Debug.Log("[SampleSceneBootstrap] Sample scene defense systems ready.", this);
+        StartCoroutine(SpawnLevelOneWaves());
+        Debug.Log("[SampleSceneBootstrap] Sample scene defense systems ready with 2 waves.", this);
     }
 
     void EnsureDefaultReferences()
@@ -183,6 +194,87 @@ public class SampleSceneBootstrap : MonoBehaviour
         }
     }
 
+    IEnumerator SpawnLevelOneWaves()
+    {
+        yield return new WaitForSeconds(Mathf.Max(waveStartDelay, 8f));
+        yield return StartCoroutine(SpawnWave(BuildWaveOneArchetypes()));
+        yield return new WaitForSeconds(9f);
+        yield return StartCoroutine(SpawnWave(BuildWaveTwoArchetypes()));
+    }
+
+    IEnumerator SpawnWave(SimpleEnemyArchetype[] archetypes)
+    {
+        if (archetypes == null || archetypes.Length == 0)
+        {
+            yield break;
+        }
+
+        foreach (var archetype in archetypes)
+        {
+            if (archetype.visualPrefab == null || archetype.count <= 0)
+            {
+                continue;
+            }
+
+            for (int i = 0; i < archetype.count; i++)
+            {
+                SpawnEnemy(archetype, i + 1);
+                yield return new WaitForSeconds(archetype.spawnInterval);
+            }
+        }
+    }
+
+    void SpawnEnemy(SimpleEnemyArchetype archetype, int index)
+    {
+        GameObject startObject = GameObject.Find("START");
+        GameObject endObject = GameObject.Find(goalObjectName);
+        if (startObject == null || endObject == null)
+        {
+            return;
+        }
+
+        Vector3 spawnPosition = startObject.transform.position + Random.insideUnitSphere * spawnRadius;
+        spawnPosition.y = startObject.transform.position.y;
+
+        GameObject enemyObject = new GameObject(archetype.displayName + "_" + index);
+        enemyObject.transform.position = spawnPosition;
+        enemyObject.transform.rotation = startObject.transform.rotation;
+
+        var mover = enemyObject.AddComponent<NPCMover>();
+        mover.destino = endObject.transform;
+
+        var agent = enemyObject.AddComponent<UnityEngine.AI.NavMeshAgent>();
+        agent.speed = archetype.moveSpeed;
+        agent.angularSpeed = 120f;
+        agent.acceleration = 12f;
+        agent.radius = 0.6f;
+        agent.height = 1.8f;
+        agent.baseOffset = 0f;
+
+        var enemy = enemyObject.AddComponent<SimpleEnemyTargetable>();
+        enemy.Configure(
+            archetype.health,
+            archetype.movementKind,
+            archetype.goalDamage,
+            archetype.currencyReward);
+
+        GameObject visual = Instantiate(archetype.visualPrefab, enemyObject.transform);
+        DisableVisualBehaviours(visual);
+        visual.transform.localPosition = Vector3.zero;
+        NormalizeVisualScale(visual, archetype.visualScale);
+        LiftVisualToGround(visual, enemyObject.transform.position.y);
+        visual.transform.localPosition += archetype.visualOffset;
+
+        if (archetype.movementKind == EnemyMovementKind.Air)
+        {
+            visual.transform.localPosition += Vector3.up * 1.1f;
+        }
+
+        enemy.FitColliderToVisual(GetRenderableBounds(visual));
+        ApplyVisualTint(visual, archetype.visualTint);
+        AttachHealthBar(enemy, visual);
+    }
+
 #if UNITY_EDITOR
     static GameObject LoadPrefabAsset(string assetPath)
     {
@@ -284,5 +376,169 @@ public class SampleSceneBootstrap : MonoBehaviour
         }
 
         return bounds;
+    }
+
+    SimpleEnemyArchetype[] BuildDefaultEnemyArchetypes()
+    {
+        return CombineArchetypeArrays(BuildWaveOneArchetypes(), BuildWaveTwoArchetypes());
+    }
+
+    SimpleEnemyArchetype[] CombineArchetypeArrays(SimpleEnemyArchetype[] first, SimpleEnemyArchetype[] second)
+    {
+        int firstCount = first == null ? 0 : first.Length;
+        int secondCount = second == null ? 0 : second.Length;
+        var combined = new SimpleEnemyArchetype[firstCount + secondCount];
+
+        for (int i = 0; i < firstCount; i++)
+        {
+            combined[i] = first[i];
+        }
+
+        for (int i = 0; i < secondCount; i++)
+        {
+            combined[firstCount + i] = second[i];
+        }
+
+        return combined;
+    }
+
+    SimpleEnemyArchetype[] BuildWaveOneArchetypes()
+    {
+        return new[]
+        {
+            new SimpleEnemyArchetype
+            {
+                displayName = "Hoverbuggy_Scout",
+                visualPrefab = buggyVisualPrefab,
+                movementKind = EnemyMovementKind.Ground,
+                count = 5,
+                health = 6f,
+                moveSpeed = 4.8f,
+                goalDamage = 1,
+                currencyReward = 25,
+                spawnInterval = 0.5f,
+                visualScale = Vector3.one * 2f,
+                visualTint = new Color(1f, 0.95f, 0.85f)
+            },
+            new SimpleEnemyArchetype
+            {
+                displayName = "Hoverbuggy_Striker",
+                visualPrefab = buggyVisualPrefab,
+                movementKind = EnemyMovementKind.Ground,
+                count = 2,
+                health = 12f,
+                moveSpeed = 5.1f,
+                goalDamage = 2,
+                currencyReward = 40,
+                spawnInterval = 0.7f,
+                visualScale = Vector3.one * 2.15f,
+                visualTint = new Color(1f, 0.72f, 0.38f)
+            },
+            new SimpleEnemyArchetype
+            {
+                displayName = "Hovertank_Bruiser",
+                visualPrefab = tankVisualPrefab,
+                movementKind = EnemyMovementKind.Ground,
+                count = 1,
+                health = 24f,
+                moveSpeed = 2f,
+                goalDamage = 2,
+                currencyReward = 65,
+                spawnInterval = 1.35f,
+                visualScale = Vector3.one * 1.8f,
+                visualTint = new Color(0.78f, 0.86f, 0.9f)
+            },
+            new SimpleEnemyArchetype
+            {
+                displayName = "Hovercopter_Raider",
+                visualPrefab = helicopterVisualPrefab,
+                movementKind = EnemyMovementKind.Air,
+                count = 2,
+                health = 14f,
+                moveSpeed = 3.2f,
+                goalDamage = 1,
+                currencyReward = 55,
+                spawnInterval = 1f,
+                visualScale = Vector3.one * 1.55f,
+                visualTint = new Color(0.82f, 0.94f, 1f)
+            }
+        };
+    }
+
+    SimpleEnemyArchetype[] BuildWaveTwoArchetypes()
+    {
+        return new[]
+        {
+            new SimpleEnemyArchetype
+            {
+                displayName = "Hoverbuggy_Scout",
+                visualPrefab = buggyVisualPrefab,
+                movementKind = EnemyMovementKind.Ground,
+                count = 4,
+                health = 7f,
+                moveSpeed = 5f,
+                goalDamage = 1,
+                currencyReward = 30,
+                spawnInterval = 0.45f,
+                visualScale = Vector3.one * 2f,
+                visualTint = new Color(1f, 0.95f, 0.85f)
+            },
+            new SimpleEnemyArchetype
+            {
+                displayName = "Hovertank_Bruiser",
+                visualPrefab = tankVisualPrefab,
+                movementKind = EnemyMovementKind.Ground,
+                count = 2,
+                health = 30f,
+                moveSpeed = 2.1f,
+                goalDamage = 2,
+                currencyReward = 75,
+                spawnInterval = 1.15f,
+                visualScale = Vector3.one * 1.9f,
+                visualTint = new Color(0.78f, 0.86f, 0.9f)
+            },
+            new SimpleEnemyArchetype
+            {
+                displayName = "Hovercopter_Raider",
+                visualPrefab = helicopterVisualPrefab,
+                movementKind = EnemyMovementKind.Air,
+                count = 3,
+                health = 18f,
+                moveSpeed = 3.3f,
+                goalDamage = 1,
+                currencyReward = 65,
+                spawnInterval = 0.85f,
+                visualScale = Vector3.one * 1.6f,
+                visualTint = new Color(0.82f, 0.94f, 1f)
+            },
+            new SimpleEnemyArchetype
+            {
+                displayName = "Hovercopter_Gunship",
+                visualPrefab = helicopterVisualPrefab,
+                movementKind = EnemyMovementKind.Air,
+                count = 2,
+                health = 26f,
+                moveSpeed = 2.8f,
+                goalDamage = 2,
+                currencyReward = 90,
+                spawnInterval = 1.05f,
+                visualScale = Vector3.one * 1.75f,
+                visualTint = new Color(1f, 0.88f, 0.55f)
+            },
+            new SimpleEnemyArchetype
+            {
+                displayName = "Hoverboss_Siege",
+                visualPrefab = bossVisualPrefab,
+                movementKind = EnemyMovementKind.Ground,
+                count = 1,
+                health = 90f,
+                moveSpeed = 1.2f,
+                goalDamage = 4,
+                currencyReward = 180,
+                spawnInterval = 1.9f,
+                visualScale = Vector3.one * 2.4f,
+                visualTint = new Color(0.95f, 0.62f, 0.48f)
+            }
+        };
     }
 }
