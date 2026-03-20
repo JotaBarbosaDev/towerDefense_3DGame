@@ -6,6 +6,8 @@ Projeto de tower defense em Unity com campanha de 5 niveis, selecao de dificulda
 
 O jogo combina um menu principal de campanha com um Level 1 personalizado em `SampleScene` e quatro niveis adicionais. O objetivo e defender a base, sobreviver as waves, gerir moedas, colocar torres nos slots certos e adaptar a estrategia ao tipo de inimigo e a dificuldade escolhida.
 
+Depois da reorganizacao do projeto, todo o conteudo jogavel ficou centralizado em `Assets/Game`, o que torna mais simples perceber onde estao as cenas, os scripts principais, os prefabs, os modelos e os dados da campanha.
+
 ## O Que Da Para Fazer
 
 ### Menu principal e campanha
@@ -99,54 +101,87 @@ Versao do Unity usada no projeto:
 
 1. Abrir o projeto na Unity Hub com a versao `6000.3.10f1`.
 2. Esperar pelo import inicial de packages e assets.
-3. O script `Assets/Scripts/Editor/ProjectStartupScene.cs` tenta abrir automaticamente o menu principal uma vez por sessao no editor.
+3. O projeto esta organizado dentro de `Assets/Game`.
+4. O script `Assets/Game/ProjectScripts/Editor/ProjectStartupScene.cs` tenta abrir automaticamente o menu principal uma vez por sessao no editor.
 
 Se for preciso abrir manualmente:
 
-- menu principal: `Assets/UnityTechnologies/TowerDefenseTemplate/Scenes/MainMenu.unity`
-- Level 1: `Assets/Scenes/SampleScene.unity`
-- restantes niveis: `Assets/UnityTechnologies/TowerDefenseTemplate/Scenes/Levels/`
+- menu principal: `Assets/Game/Scenes/MainMenu.unity`
+- Level 1: `Assets/Game/ProjectScenes/SampleScene.unity`
+- restantes niveis: `Assets/Game/Scenes/Levels/`
 
 ## Estrutura Principal
 
+### Organizacao geral
+
+- `Assets/Game/`
+  contem todo o conteudo principal do jogo num unico bloco
+
+- `Assets/Game/ProjectScripts/`
+  contem a logica personalizada deste projeto, incluindo bootstrap do Level 1, dificuldade, progressao, HUD simples e overlay de campanha
+
+- `Assets/Game/Scripts/`
+  contem os sistemas de suporte usados pelos restantes niveis e pela infraestrutura do jogo, como UI, waves, torres, agentes, camera, input e dados base
+
+- `Assets/Game/ProjectScenes/`
+  contem a cena personalizada usada como primeiro nivel da campanha
+
+- `Assets/Game/Scenes/`
+  contem o menu principal e os niveis seguintes da campanha
+
+- `Assets/Game/Data/`
+  contem configuracoes de agentes, torres, bibliotecas de torres, alinhamentos e listas de niveis
+
+- `Assets/Game/Prefabs/`, `Assets/Game/Models/`, `Assets/Game/Materials/`, `Assets/Game/Audio/` e `Assets/Game/UI/`
+  concentram os assets visuais, audio e prefabs usados pelo jogo
+
 ### Scripts mais importantes
 
-- `Assets/Scripts/SampleSceneBootstrap.cs`  
+- `Assets/Game/ProjectScripts/SampleSceneBootstrap.cs`  
   Configura o `SampleScene`, cria o fluxo do Level 1, prepara inimigos, waves, moeda, construcao e fim de nivel.
 
-- `Assets/Scripts/SimpleBuildManager.cs`  
+- `Assets/Game/ProjectScripts/SimpleBuildManager.cs`  
   Gere slots, barra inferior, drag-and-drop, ghost de colocacao e validacao da compra.
 
-- `Assets/Scripts/SimpleCurrencyManager.cs`  
+- `Assets/Game/ProjectScripts/SimpleCurrencyManager.cs`  
   Gere a moeda do jogador e os eventos de atualizacao.
 
-- `Assets/Scripts/SimpleCurrencyHUD.cs`  
+- `Assets/Game/ProjectScripts/SimpleCurrencyHUD.cs`  
   Desenha o HUD de moedas em runtime.
 
-- `Assets/Scripts/Level1DifficultySettings.cs`  
+- `Assets/Game/ProjectScripts/Level1DifficultySettings.cs`  
   Define as dificuldades, as regras de campanha e as cenas associadas a cada nivel.
 
-- `Assets/Scripts/CampaignLevelBootstrap.cs`  
+- `Assets/Game/ProjectScripts/CampaignLevelBootstrap.cs`  
   Aplica a dificuldade aos niveis seguintes da campanha, incluindo currency, waves, base e biblioteca de torres.
 
-- `Assets/Scripts/CampaignProgression.cs`  
+- `Assets/Game/ProjectScripts/CampaignProgression.cs`  
   Gere estrelas, desbloqueios e persistencia da campanha.
 
-- `Assets/Scripts/SimpleCampaignEndGameUI.cs`  
+- `Assets/Game/ProjectScripts/SimpleCampaignEndGameUI.cs`  
   Mostra o ecra final de vitoria ou derrota com estrelas e navegacao.
 
-- `Assets/Scripts/Level1MainMenuOverlay.cs`  
+- `Assets/Game/ProjectScripts/Level1MainMenuOverlay.cs`  
   Implementa o overlay de campanha no menu com dificuldade, selecao de nivel e volume.
 
 ### Cenas e conteudo
 
-- `Assets/Scenes/`  
+- `Assets/Game/ProjectScenes/`  
   Contem a cena personalizada usada como Level 1.
 
-- `Assets/UnityTechnologies/TowerDefenseTemplate/Scenes/`  
+- `Assets/Game/Scenes/`  
   Contem o menu principal e os restantes niveis da campanha.
 
-- `Assets/UnityTechnologies/TowerDefenseTemplate/Scripts/`  
+- `Assets/Game/Data/`  
+  Contem dados configuraveis da campanha, inimigos e torres.
+
+- `Assets/Game/Prefabs/`  
+  Contem prefabs de torres, inimigos, UI, audio e outros elementos reutilizaveis.
+
+- `Assets/Game/Models/` e `Assets/Game/Materials/`  
+  Contem os modelos 3D, texturas e materiais usados nas cenas e nos prefabs.
+
+- `Assets/Game/Scripts/`  
   Contem componentes adicionais do jogo, incluindo HUD de torre, waves e menus usados nos restantes niveis.
 
 ## Persistencia
@@ -164,4 +199,5 @@ O projeto guarda automaticamente:
 - menu com selecao de dificuldade, niveis e volume
 - Level 1 personalizado com sistema proprio de construcao
 - progressao por estrelas e desbloqueio de niveis
-- README atualizado com funcionalidades principais
+- estrutura do projeto centralizada em `Assets/Game`
+- README atualizado com funcionalidades principais e organizacao atual
